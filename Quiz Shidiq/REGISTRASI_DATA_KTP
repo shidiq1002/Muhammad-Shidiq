@@ -1,0 +1,296 @@
+"""
+Aplikasi Registrasi Data KTP (Terminal)
+---------------------------------------
+- Tidak butuh library tambahan.
+- Data tersimpan ke data_ktp.csv di folder yang sama.
+- Jalankan:  python registrasi_ktp.py
+"""
+
+import csv
+import os
+import textwrap
+from datetime import datetime
+
+os.system("")  # mengaktifkan warna ANSI di Windows
+
+# ---------- Warna terminal ----------
+R = "\033[0m"
+BOLD = "\033[1m"
+RED = "\033[91m"
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+BLUE = "\033[94m"
+CYAN = "\033[96m"
+GRAY = "\033[90m"
+
+FILE_CSV = "data_ktp.csv"
+LEBAR = 68  # lebar bagian dalam kartu
+
+KOLOM = ["Waktu", "NIK", "Nama", "Tempat Lahir", "Tgl Lahir", "Jenis Kelamin", "Gol Darah",
+         "Alamat", "RT/RW", "Kel/Desa", "Kecamatan", "Agama", "Status Perkawinan",
+         "Pekerjaan", "Kewarganegaraan"]
+
+PILIHAN = {
+    "Jenis Kelamin": ["LAKI-LAKI", "PEREMPUAN"],
+    "Gol Darah": ["A", "B", "AB", "O", "-"],
+    "Agama": ["ISLAM", "KRISTEN", "KATOLIK", "HINDU", "BUDDHA", "KONGHUCU"],
+    "Status Perkawinan": ["BELUM KAWIN", "KAWIN", "CERAI HIDUP", "CERAI MATI"],
+    "Kewarganegaraan": ["WNI", "WNA"],
+}
+
+
+# ---------- Utilitas tampilan ----------
+def bersih():
+    os.system("cls" if os.name == "nt" else "clear")
+
+
+def banner():
+    print(f"{BOLD}{CYAN}")
+    print("  ╔══════════════════════════════════════════════════════════════════╗")
+    print("  ║            SISTEM REGISTRASI DATA KARTU TANDA PENDUDUK           ║")
+    print("  ╚══════════════════════════════════════════════════════════════════╝")
+    print(R)
+
+
+def garis(kiri, tengah, kanan):
+    return f"  {BLUE}{kiri}{tengah * LEBAR}{kanan}{R}"
+
+
+def baris(teks="", warna="", rata="kiri"):
+    """Satu baris di dalam kotak; padding dihitung sebelum diberi warna."""
+    if rata == "tengah":
+        isi = teks.center(LEBAR)
+    else:
+        isi = (" " + teks).ljust(LEBAR)
+    return f"  {BLUE}║{R}{warna}{isi}{R}{BLUE}║{R}"
+
+
+def baris_data(label, nilai):
+    lebar_nilai = LEBAR - 24
+    bagian = textwrap.wrap(nilai, lebar_nilai) or ["-"]
+    hasil = []
+    for i, b in enumerate(bagian):
+        lbl = label if i == 0 else ""
+        sep = ":" if i == 0 else " "
+        hasil.append(
+            f"  {BLUE}║{R} {GRAY}{lbl:<18}{R}{sep} {BOLD}{b:<{lebar_nilai}}{R} {BLUE}║{R}"
+        )
+    return hasil
+
+
+def tampilkan_ktp(d):
+    print()
+    print(garis("╔", "═", "╗"))
+    print(baris("PROVINSI SUMATERA UTARA", BOLD + YELLOW, "tengah"))
+    print(baris("KABUPATEN / KOTA", BOLD + YELLOW, "tengah"))
+    print(garis("╠", "═", "╣"))
+    print(baris())
+    for h in baris_data("NIK", " ".join([d["NIK"][i:i + 4] for i in range(0, 16, 4)])):
+        print(h.replace(BOLD, BOLD + GREEN))
+    print(baris())
+
+    urut = [
+        ("Nama", d["Nama"]),
+        ("Tempat/Tgl Lahir", f"{d['Tempat Lahir']}, {d['Tgl Lahir']}"),
+        ("Jenis Kelamin", f"{d['Jenis Kelamin']}      Gol. Darah: {d['Gol Darah']}"),
+        ("Alamat", d["Alamat"]),
+        ("   RT/RW", d["RT/RW"]),
+        ("   Kel/Desa", d["Kel/Desa"]),
+        ("   Kecamatan", d["Kecamatan"]),
+        ("Agama", d["Agama"]),
+        ("Status Perkawinan", d["Status Perkawinan"]),
+        ("Pekerjaan", d["Pekerjaan"]),
+        ("Kewarganegaraan", d["Kewarganegaraan"]),
+        ("Berlaku Hingga", "SEUMUR HIDUP"),
+    ]
+    for label, nilai in urut:
+        for h in baris_data(label, nilai):
+            print(h)
+
+    print(baris())
+    tgl = datetime.now().strftime("%d-%m-%Y")
+    print(baris(f"Dicetak: {tgl}", GRAY))
+    print(garis("╚", "═", "╝"))
+    print()
+
+
+# ---------- Input & validasi ----------
+def tanya(label, validator=None, huruf_besar=True, contoh=""):
+    petunjuk = f" {GRAY}({contoh}){R}" if contoh else ""
+    while True:
+        nilai = input(f"  {CYAN}▸{R} {label}{petunjuk}: ").strip()
+        if huruf_besar:
+            nilai = nilai.upper()
+        if not nilai:
+            print(f"    {RED}✗ Tidak boleh kosong.{R}")
+            continue
+        if validator:
+            pesan = validator(nilai)
+            if pesan:
+                print(f"    {RED}✗ {pesan}{R}")
+                continue
+        return nilai
+
+
+def pilih(label, opsi):
+    print(f"  {CYAN}▸{R} {label}:")
+    for i, o in enumerate(opsi, 1):
+        print(f"      {YELLOW}{i}{R}. {o}")
+    while True:
+        p = input("    Pilih nomor: ").strip()
+        if p.isdigit() and 1 <= int(p) <= len(opsi):
+            return opsi[int(p) - 1]
+        print(f"    {RED}✗ Pilihan tidak valid.{R}")
+
+
+def v_nik(n):
+    if not (n.isdigit() and len(n) == 16):
+        return "NIK harus 16 digit angka."
+    if nik_sudah_ada(n):
+        return "NIK sudah terdaftar."
+    return None
+
+
+def v_tgl(t):
+    try:
+        lahir = datetime.strptime(t, "%d-%m-%Y")
+    except ValueError:
+        return "Format harus DD-MM-YYYY, contoh 17-08-2004."
+    if lahir > datetime.now():
+        return "Tanggal lahir tidak boleh di masa depan."
+    return None
+
+
+def v_rtrw(t):
+    bagian = t.split("/")
+    if len(bagian) != 2 or not all(b.isdigit() for b in bagian):
+        return "Format harus RT/RW, contoh 003/005."
+    return None
+
+
+def cek_nik_vs_tgl(nik, tgl, gender):
+    """Digit 7-12 NIK = DDMMYY (hari +40 untuk perempuan). Beri peringatan jika tidak cocok."""
+    hari, bulan, tahun = int(nik[6:8]), nik[8:10], nik[10:12]
+    if hari > 40:
+        hari -= 40
+    lahir = datetime.strptime(tgl, "%d-%m-%Y")
+    cocok = (f"{hari:02d}" == f"{lahir.day:02d}" and bulan == f"{lahir.month:02d}"
+             and tahun == f"{lahir.year % 100:02d}")
+    if not cocok:
+        print(f"\n  {YELLOW}⚠ Peringatan: digit tanggal lahir pada NIK tidak sesuai dengan tanggal lahir yang diisi.{R}")
+    elif (int(nik[6:8]) > 40) != (gender == "PEREMPUAN"):
+        print(f"\n  {YELLOW}⚠ Peringatan: kode jenis kelamin pada NIK tidak sesuai.{R}")
+
+
+# ---------- Penyimpanan ----------
+def baca_semua():
+    if not os.path.exists(FILE_CSV):
+        return []
+    with open(FILE_CSV, newline="", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+
+def nik_sudah_ada(nik):
+    return any(r["NIK"] == nik for r in baca_semua())
+
+
+def simpan(d):
+    baru = not os.path.exists(FILE_CSV)
+    with open(FILE_CSV, "a", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=KOLOM)
+        if baru:
+            w.writeheader()
+        w.writerow(d)
+
+
+# ---------- Menu ----------
+def registrasi():
+    bersih()
+    banner()
+    print(f"  {BOLD}REGISTRASI BARU{R}\n")
+    d = {"Waktu": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+
+    d["NIK"] = tanya("NIK", v_nik, contoh="16 digit")
+    d["Nama"] = tanya("Nama Lengkap")
+    d["Tempat Lahir"] = tanya("Tempat Lahir")
+    d["Tgl Lahir"] = tanya("Tanggal Lahir", v_tgl, contoh="DD-MM-YYYY")
+    d["Jenis Kelamin"] = pilih("Jenis Kelamin", PILIHAN["Jenis Kelamin"])
+    d["Gol Darah"] = pilih("Golongan Darah", PILIHAN["Gol Darah"])
+    d["Alamat"] = tanya("Alamat (jalan/dusun)")
+    d["RT/RW"] = tanya("RT/RW", v_rtrw, contoh="003/005")
+    d["Kel/Desa"] = tanya("Kelurahan/Desa")
+    d["Kecamatan"] = tanya("Kecamatan")
+    d["Agama"] = pilih("Agama", PILIHAN["Agama"])
+    d["Status Perkawinan"] = pilih("Status Perkawinan", PILIHAN["Status Perkawinan"])
+    d["Pekerjaan"] = tanya("Pekerjaan")
+    d["Kewarganegaraan"] = pilih("Kewarganegaraan", PILIHAN["Kewarganegaraan"])
+
+    cek_nik_vs_tgl(d["NIK"], d["Tgl Lahir"], d["Jenis Kelamin"])
+
+    bersih()
+    banner()
+    print(f"  {BOLD}PRATINJAU DATA KTP{R}")
+    tampilkan_ktp(d)
+
+    yakin = input("  Simpan data ini? (y/n): ").strip().lower()
+    if yakin == "y":
+        simpan(d)
+        print(f"\n  {GREEN}✓ Data berhasil disimpan ke {FILE_CSV}{R}")
+    else:
+        print(f"\n  {YELLOW}Data tidak disimpan.{R}")
+    input("\n  Tekan Enter untuk kembali ke menu...")
+
+
+def daftar():
+    bersih()
+    banner()
+    data = baca_semua()
+    if not data:
+        print(f"  {YELLOW}Belum ada data tersimpan.{R}")
+    else:
+        print(f"  {BOLD}DAFTAR PENDUDUK TERDAFTAR ({len(data)}){R}\n")
+        print(f"  {BOLD}{'No':<4}{'NIK':<19}{'Nama':<28}{'Kecamatan':<18}{R}")
+        print(f"  {GRAY}{'─' * 69}{R}")
+        for i, r in enumerate(data, 1):
+            print(f"  {i:<4}{r['NIK']:<19}{r['Nama'][:26]:<28}{r['Kecamatan'][:16]:<18}")
+    input("\n  Tekan Enter untuk kembali ke menu...")
+
+
+def cari():
+    bersih()
+    banner()
+    nik = input("  Masukkan NIK yang dicari: ").strip()
+    for r in baca_semua():
+        if r["NIK"] == nik:
+            tampilkan_ktp(r)
+            break
+    else:
+        print(f"\n  {RED}✗ NIK {nik} tidak ditemukan.{R}")
+    input("\n  Tekan Enter untuk kembali ke menu...")
+
+
+def menu():
+    while True:
+        bersih()
+        banner()
+        print(f"  {YELLOW}1{R}. Registrasi KTP baru")
+        print(f"  {YELLOW}2{R}. Lihat daftar penduduk")
+        print(f"  {YELLOW}3{R}. Cari & tampilkan KTP berdasarkan NIK")
+        print(f"  {YELLOW}0{R}. Keluar\n")
+        p = input("  Pilih menu: ").strip()
+        if p == "1":
+            registrasi()
+        elif p == "2":
+            daftar()
+        elif p == "3":
+            cari()
+        elif p == "0":
+            print(f"\n  {CYAN}Terima kasih!{R}\n")
+            break
+
+
+if __name__ == "__main__":
+    try:
+        menu()
+    except (KeyboardInterrupt, EOFError):
+        print(f"\n\n  {CYAN}Program dihentikan.{R}\n")
